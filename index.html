@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>班級平板使用登記</title>
+  <title>LTJH班級平板使用登記</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
@@ -12,8 +12,15 @@
 <body class="bg-slate-100 min-h-screen py-5 px-3">
 
   <div class="max-w-md mx-auto bg-white rounded-2xl shadow-md p-5">
-    <h1 class="text-xl font-bold text-slate-800 text-center mb-1">📱 班級平板使用登記</h1>
-    <p class="text-xs text-slate-500 text-center mb-5">支援事後補登・自動依日期歸檔至對應學期</p>
+    <h1 class="text-xl font-bold text-slate-800 flex items-center justify-center gap-2 mb-5">
+      <!-- iPad 圖示 -->
+      <svg class="w-6 h-6 text-slate-800 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="4" y="2" width="16" height="20" rx="2.5" ry="2.5"></rect>
+        <line x1="10" y1="19" x2="14" y2="19"></line>
+        <circle cx="12" cy="5" r="0.6" fill="currentColor"></circle>
+      </svg>
+      <span>LTJH班級平板使用登記</span>
+    </h1>
 
     <form id="logForm" class="space-y-4">
       <!-- 教師姓名 & 科目 -->
@@ -21,12 +28,12 @@
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1">教師姓名</label>
           <input type="text" id="teacherName" required placeholder="請輸入姓名"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500">
         </div>
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1">任教科目</label>
           <select id="subject" required
-            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-500">
             <option value="國文">國文</option>
             <option value="英語">英語</option>
             <option value="數學">數學</option>
@@ -47,7 +54,7 @@
       <div>
         <label class="block text-sm font-medium text-slate-700 mb-1">使用日期（可選過去日期補登）</label>
         <input type="date" id="useDate" required
-          class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500">
       </div>
 
       <!-- 1. 先選年級 -->
@@ -74,9 +81,9 @@
         </div>
       </div>
 
-      <!-- 送出按鈕 -->
+      <!-- 送出按鈕（深鐵灰色） -->
       <button type="submit" id="submitBtn"
-        class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold py-2.5 rounded-xl transition disabled:opacity-50">
+        class="w-full bg-slate-800 hover:bg-slate-900 active:bg-slate-950 text-white font-semibold py-2.5 rounded-xl transition disabled:opacity-50">
         送出登記
       </button>
 
@@ -87,24 +94,42 @@
     <div class="mt-6 pt-5 border-t border-slate-200">
       <div class="flex justify-between items-center mb-3">
         <h2 class="text-sm font-bold text-slate-700">我的近期登記</h2>
-        <span id="totalBadge" class="text-xs bg-blue-100 text-blue-700 font-semibold px-2.5 py-0.5 rounded-full">
+        <span id="totalBadge" class="text-xs bg-slate-200 text-slate-700 font-semibold px-2.5 py-0.5 rounded-full">
           本學期累計：0 節
         </span>
       </div>
-      <div id="recentList" class="space-y-2 text-xs text-slate-600">
+	<!-- 4 欄標題列 -->
+      <div class="grid grid-cols-4 gap-2 px-3 pb-1.5 text-[11px] font-semibold text-slate-400 text-left">
+        <span>登記日期</span>
+        <span>班級</span>
+        <span>節次</span>
+        <span>科目</span>
+      </div>
+      <div id="recentList" class="space-y-1.5 text-xs text-slate-600">
         <p class="text-slate-400 text-center py-2">輸入姓名後將顯示該學期紀錄</p>
       </div>
+      <!-- 顯示全部 / 收合按鈕 -->
+      <button type="button" id="toggleRecordsBtn"
+        class="hidden w-full mt-2.5 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition">
+      </button>
     </div>
   </div>
 
   <script>
-    // ★★★ 請將此處替換為步驟二取得的 GAS 網頁應用程式網址 ★★★
-    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzNMCtfonbYpiU7MVrar3aL1JWGUw0WS6_UEbV-Ma48YpvwnnG7Br-_9IrSw-PT84UnwQ/exec';
+    // ★★★ 請將此處替換為你的 GAS 網頁應用程式網址 ★★★
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyVo-RomjY-IeJJScDnssnKDHgAthIUPmw4zDGpNwkuCkqqxCNptj7lbOh9W9pYH-Lt_A/exec';
 
     const GRADE_CLASSES = {
       '七年級': ['701', '702', '703', '704', '705', '706', '其它'],
       '八年級': ['801', '802', '803', '804', '805', '806', '其它'],
       '九年級': ['901', '902', '903', '904', '905', '906', '907', '其它']
+    };
+
+    // 各年級專屬色系（年級、班級、節次共用）
+    const GRADE_THEMES = {
+      '七年級': 'bg-emerald-600 text-white border-emerald-600',
+      '八年級': 'bg-orange-500 text-white border-orange-500',
+      '九年級': 'bg-violet-600 text-white border-violet-600'
     };
 
     const PERIODS = [
@@ -115,6 +140,8 @@
     let selectedGrade = '七年級';
     let selectedClass = '';
     let selectedPeriods = new Set();
+    let allRecords = [];
+    let showAllRecords = false;
 
     window.onload = () => {
       // 1. 填入今天日期
@@ -154,13 +181,14 @@
         btn.textContent = grade;
         const isActive = grade === selectedGrade;
         btn.className = isActive
-          ? 'py-2 text-sm font-semibold rounded-lg bg-blue-600 text-white border border-blue-600 transition'
+          ? `py-2 text-sm font-semibold rounded-lg border transition ${GRADE_THEMES[grade]}`
           : 'py-2 text-sm font-medium rounded-lg bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 transition';
         btn.onclick = () => {
           selectedGrade = grade;
           selectedClass = '';
           renderGrades();
           renderClasses(grade);
+          renderPeriods();
         };
         container.appendChild(btn);
       });
@@ -169,16 +197,15 @@
     function renderClasses(grade) {
       const container = document.getElementById('classContainer');
       container.innerHTML = '';
+      const activeTheme = GRADE_THEMES[grade];
       GRADE_CLASSES[grade].forEach(cls => {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.textContent = cls;
-        const isSpecial = cls.includes('特殊班');
         const isActive = cls === selectedClass;
-        const spanClass = isSpecial ? 'col-span-2' : '';
-        btn.className = `${spanClass} py-2 text-xs font-medium rounded-lg border transition ` + (
+        btn.className = 'py-2 text-xs font-medium rounded-lg border transition ' + (
           isActive
-            ? 'bg-emerald-600 text-white border-emerald-600 font-semibold'
+            ? `${activeTheme} font-semibold`
             : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
         );
         btn.onclick = () => {
@@ -192,6 +219,7 @@
     function renderPeriods() {
       const container = document.getElementById('periodContainer');
       container.innerHTML = '';
+      const activeTheme = GRADE_THEMES[selectedGrade];
       PERIODS.forEach(p => {
         const btn = document.createElement('button');
         btn.type = 'button';
@@ -199,7 +227,7 @@
         const isActive = selectedPeriods.has(p);
         btn.className = 'py-2 text-xs font-medium rounded-lg border transition ' + (
           isActive
-            ? 'bg-blue-600 text-white border-blue-600 font-semibold'
+            ? `${activeTheme} font-semibold`
             : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
         );
         btn.onclick = () => {
@@ -217,6 +245,7 @@
       if (!name) return;
 
       document.getElementById('recentList').innerHTML = '<p class="text-slate-400 text-center py-2">載入中...</p>';
+      document.getElementById('toggleRecordsBtn').classList.add('hidden');
       try {
         const url = `${GAS_API_URL}?teacherName=${encodeURIComponent(name)}&date=${encodeURIComponent(date)}`;
         const res = await fetch(url);
@@ -232,19 +261,45 @@
     function renderRecords(res) {
       const semLabel = res.semester ? `${res.semester} 累計` : '本學期累計';
       document.getElementById('totalBadge').textContent = `${semLabel}：${res.total} 節`;
+      allRecords = res.recent || [];
+      showAllRecords = false;
+      renderRecordList();
+    }
+
+    function renderRecordList() {
       const list = document.getElementById('recentList');
-      if (!res.recent || res.recent.length === 0) {
+      const toggleBtn = document.getElementById('toggleRecordsBtn');
+
+      if (allRecords.length === 0) {
         list.innerHTML = '<p class="text-slate-400 text-center py-2">尚無登記紀錄</p>';
+        toggleBtn.classList.add('hidden');
         return;
       }
-      list.innerHTML = res.recent.map(r => `
-        <div class="flex justify-between items-center bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
+
+      const displayList = showAllRecords ? allRecords : allRecords.slice(0, 5);
+		list.innerHTML = displayList.map(r => `
+        <div class="grid grid-cols-4 items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 text-left">
           <span class="font-medium text-slate-700">${r.date}</span>
-          <span>${r.className}・${r.period}</span>
+          <span>${r.className}</span>
+          <span>${r.period}</span>
           <span class="text-slate-400">${r.subject}</span>
         </div>
       `).join('');
+
+      if (allRecords.length > 5) {
+        toggleBtn.classList.remove('hidden');
+        toggleBtn.textContent = showAllRecords
+          ? '收合紀錄（僅顯示最近 5 筆）'
+          : `顯示全部（共 ${allRecords.length} 筆）`;
+      } else {
+        toggleBtn.classList.add('hidden');
+      }
     }
+
+    document.getElementById('toggleRecordsBtn').onclick = () => {
+      showAllRecords = !showAllRecords;
+      renderRecordList();
+    };
 
     document.getElementById('logForm').onsubmit = async (e) => {
       e.preventDefault();
