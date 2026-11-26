@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>班級平板使用登記</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen py-5 px-3">
+
+  <div class="max-w-md mx-auto bg-white rounded-2xl shadow-md p-5">
+    <h1 class="text-xl font-bold text-slate-800 text-center mb-1">📱 班級平板使用登記</h1>
+    <p class="text-xs text-slate-500 text-center mb-5">支援事後補登・自動依日期歸檔至對應學期</p>
+
+    <form id="logForm" class="space-y-4">
+      <!-- 教師姓名 & 科目 -->
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">教師姓名</label>
+          <input type="text" id="teacherName" required placeholder="請輸入姓名"
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">任教科目</label>
+          <select id="subject" required
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="國文">國文</option>
+            <option value="英語">英語</option>
+            <option value="數學">數學</option>
+            <option value="自然">自然</option>
+            <option value="社會">社會</option>
+            <option value="資訊科技">資訊科技</option>
+            <option value="生活科技">生活科技</option>
+            <option value="藝術">藝術</option>
+            <option value="健體">健體</option>
+            <option value="綜合">綜合</option>
+            <option value="特教">特教</option>
+            <option value="其他">其他</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 使用日期 -->
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">使用日期（可選過去日期補登）</label>
+        <input type="date" id="useDate" required
+          class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+
+      <!-- 1. 先選年級 -->
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1.5">選擇年級</label>
+        <div id="gradeContainer" class="grid grid-cols-3 gap-2">
+          <!-- JS 動態產生 -->
+        </div>
+      </div>
+
+      <!-- 2. 再選班級 -->
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1.5">選擇班級</label>
+        <div id="classContainer" class="grid grid-cols-4 gap-2">
+          <!-- JS 動態產生 -->
+        </div>
+      </div>
+
+      <!-- 3. 選擇節次（複選） -->
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1.5">使用節次（可複選）</label>
+        <div id="periodContainer" class="grid grid-cols-5 gap-1.5">
+          <!-- JS 動態產生 -->
+        </div>
+      </div>
+
+      <!-- 送出按鈕 -->
+      <button type="submit" id="submitBtn"
+        class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold py-2.5 rounded-xl transition disabled:opacity-50">
+        送出登記
+      </button>
+
+      <div id="statusMsg" class="text-center text-sm font-medium hidden"></div>
+    </form>
+
+    <!-- 個人近期紀錄 -->
+    <div class="mt-6 pt-5 border-t border-slate-200">
+      <div class="flex justify-between items-center mb-3">
+        <h2 class="text-sm font-bold text-slate-700">我的近期登記</h2>
+        <span id="totalBadge" class="text-xs bg-blue-100 text-blue-700 font-semibold px-2.5 py-0.5 rounded-full">
+          本學期累計：0 節
+        </span>
+      </div>
+      <div id="recentList" class="space-y-2 text-xs text-slate-600">
+        <p class="text-slate-400 text-center py-2">輸入姓名後將顯示該學期紀錄</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ★★★ 請將此處替換為步驟二取得的 GAS 網頁應用程式網址 ★★★
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzNMCtfonbYpiU7MVrar3aL1JWGUw0WS6_UEbV-Ma48YpvwnnG7Br-_9IrSw-PT84UnwQ/exec';
+
+    const GRADE_CLASSES = {
+      '七年級': ['701', '702', '703', '704', '705', '706', '其它'],
+      '八年級': ['801', '802', '803', '804', '805', '806', '其它'],
+      '九年級': ['901', '902', '903', '904', '905', '906', '907', '其它']
+    };
+
+    const PERIODS = [
+      '早自修', '第1節', '第2節', '第3節', '第4節',
+      '午休',   '第5節', '第6節', '第7節', '第8節'
+    ];
+
+    let selectedGrade = '七年級';
+    let selectedClass = '';
+    let selectedPeriods = new Set();
+
+    window.onload = () => {
+      // 1. 填入今天日期
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      document.getElementById('useDate').value = `${yyyy}-${mm}-${dd}`;
+
+      // 2. 渲染年級、班級、節次按鈕
+      renderGrades();
+      renderClasses(selectedGrade);
+      renderPeriods();
+
+      // 3. 讀取瀏覽器記憶的姓名與科目
+      const savedName = localStorage.getItem('tablet_teacherName');
+      const savedSubject = localStorage.getItem('tablet_subject');
+      if (savedName) {
+        document.getElementById('teacherName').value = savedName;
+        loadRecords();
+      }
+      if (savedSubject) {
+        document.getElementById('subject').value = savedSubject;
+      }
+
+      // 姓名或日期變更時，重新載入對應學期的紀錄
+      document.getElementById('teacherName').addEventListener('change', loadRecords);
+      document.getElementById('useDate').addEventListener('change', loadRecords);
+    };
+
+    function renderGrades() {
+      const container = document.getElementById('gradeContainer');
+      container.innerHTML = '';
+      Object.keys(GRADE_CLASSES).forEach(grade => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = grade;
+        const isActive = grade === selectedGrade;
+        btn.className = isActive
+          ? 'py-2 text-sm font-semibold rounded-lg bg-blue-600 text-white border border-blue-600 transition'
+          : 'py-2 text-sm font-medium rounded-lg bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 transition';
+        btn.onclick = () => {
+          selectedGrade = grade;
+          selectedClass = '';
+          renderGrades();
+          renderClasses(grade);
+        };
+        container.appendChild(btn);
+      });
+    }
+
+    function renderClasses(grade) {
+      const container = document.getElementById('classContainer');
+      container.innerHTML = '';
+      GRADE_CLASSES[grade].forEach(cls => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = cls;
+        const isSpecial = cls.includes('特殊班');
+        const isActive = cls === selectedClass;
+        const spanClass = isSpecial ? 'col-span-2' : '';
+        btn.className = `${spanClass} py-2 text-xs font-medium rounded-lg border transition ` + (
+          isActive
+            ? 'bg-emerald-600 text-white border-emerald-600 font-semibold'
+            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+        );
+        btn.onclick = () => {
+          selectedClass = cls;
+          renderClasses(grade);
+        };
+        container.appendChild(btn);
+      });
+    }
+
+    function renderPeriods() {
+      const container = document.getElementById('periodContainer');
+      container.innerHTML = '';
+      PERIODS.forEach(p => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = p;
+        const isActive = selectedPeriods.has(p);
+        btn.className = 'py-2 text-xs font-medium rounded-lg border transition ' + (
+          isActive
+            ? 'bg-blue-600 text-white border-blue-600 font-semibold'
+            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+        );
+        btn.onclick = () => {
+          if (selectedPeriods.has(p)) selectedPeriods.delete(p);
+          else selectedPeriods.add(p);
+          renderPeriods();
+        };
+        container.appendChild(btn);
+      });
+    }
+
+    async function loadRecords() {
+      const name = document.getElementById('teacherName').value.trim();
+      const date = document.getElementById('useDate').value;
+      if (!name) return;
+
+      document.getElementById('recentList').innerHTML = '<p class="text-slate-400 text-center py-2">載入中...</p>';
+      try {
+        const url = `${GAS_API_URL}?teacherName=${encodeURIComponent(name)}&date=${encodeURIComponent(date)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.success) {
+          renderRecords(data);
+        }
+      } catch (err) {
+        document.getElementById('recentList').innerHTML = '<p class="text-red-400 text-center py-2">讀取紀錄失敗，請檢查網路</p>';
+      }
+    }
+
+    function renderRecords(res) {
+      const semLabel = res.semester ? `${res.semester} 累計` : '本學期累計';
+      document.getElementById('totalBadge').textContent = `${semLabel}：${res.total} 節`;
+      const list = document.getElementById('recentList');
+      if (!res.recent || res.recent.length === 0) {
+        list.innerHTML = '<p class="text-slate-400 text-center py-2">尚無登記紀錄</p>';
+        return;
+      }
+      list.innerHTML = res.recent.map(r => `
+        <div class="flex justify-between items-center bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
+          <span class="font-medium text-slate-700">${r.date}</span>
+          <span>${r.className}・${r.period}</span>
+          <span class="text-slate-400">${r.subject}</span>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('logForm').onsubmit = async (e) => {
+      e.preventDefault();
+      if (!selectedClass) {
+        showStatus('請選擇班級！', 'text-red-600');
+        return;
+      }
+      if (selectedPeriods.size === 0) {
+        showStatus('請至少選擇一個節次！', 'text-red-600');
+        return;
+      }
+
+      const teacherName = document.getElementById('teacherName').value.trim();
+      const subject = document.getElementById('subject').value;
+      const date = document.getElementById('useDate').value;
+
+      localStorage.setItem('tablet_teacherName', teacherName);
+      localStorage.setItem('tablet_subject', subject);
+
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      btn.textContent = '傳送中...';
+      showStatus('', '');
+
+      const payload = {
+        teacherName,
+        subject,
+        date,
+        grade: selectedGrade,
+        className: selectedClass,
+        periods: Array.from(selectedPeriods)
+      };
+
+      try {
+        const res = await fetch(GAS_API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          showStatus('✅ ' + data.message, 'text-emerald-600');
+          selectedPeriods.clear();
+          renderPeriods();
+          renderRecords(data);
+        } else {
+          showStatus('❌ ' + data.message, 'text-red-600');
+        }
+      } catch (err) {
+        showStatus('❌ 連線失敗，請稍後再試', 'text-red-600');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '送出登記';
+      }
+    };
+
+    function showStatus(msg, colorClass) {
+      const el = document.getElementById('statusMsg');
+      if (!msg) {
+        el.classList.add('hidden');
+        return;
+      }
+      el.textContent = msg;
+      el.className = `text-center text-sm font-medium ${colorClass}`;
+      el.classList.remove('hidden');
+    }
+  </script>
+</body>
+</html>
