@@ -25,17 +25,26 @@
     <form id="logForm" class="space-y-4">
       <!-- 教師姓名 & 科目 -->
       <div class="grid grid-cols-2 gap-3">
-        <div>
+        <div id="teacherComboBox" class="relative">
           <label class="block text-sm font-medium text-slate-700 mb-1">教師姓名</label>
-          <input type="text" id="teacherName" autocomplete="off" list="teacherList" required placeholder="選擇或輸入姓名"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500">
-          <!-- 由試算表「教師名單」動態載入 -->
-          <datalist id="teacherList"></datalist>
+          <div class="relative">
+            <input type="text" id="teacherName" autocomplete="off" required placeholder="選擇或輸入姓名"
+              class="w-full rounded-lg border border-slate-300 pl-3 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500">
+            <!-- 下拉箭頭圖示 -->
+            <svg class="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <!-- 自製下拉選單（iPhone / Android / 電腦通用） -->
+          <ul id="teacherDropdown"
+            class="hidden absolute z-20 left-0 right-0 mt-1 max-h-52 overflow-y-auto bg-white border border-slate-300 rounded-lg shadow-lg text-sm divide-y divide-slate-100">
+          </ul>
         </div>
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1">任教科目</label>
           <select id="subject" required
             class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-500">
+            <option value="">請選擇科目</option>
             <option value="國文">國文</option>
             <option value="英語">英語</option>
             <option value="數學">數學</option>
@@ -143,6 +152,7 @@
     let selectedPeriod = '';
     let allRecords = [];
     let showAllRecords = false;
+    let allTeachers = [];
     let teacherSubjectMap = {}; // 儲存 教師姓名 -> 任教科目 對照表
 
     window.onload = () => {
@@ -172,29 +182,39 @@
         document.getElementById('subject').value = savedSubject;
       }
 
-      // 姓名變更時：自動帶入任教科目並查詢紀錄
+      // 5. 姓名欄自製下拉選單互動事件
       const nameInput = document.getElementById('teacherName');
-      nameInput.addEventListener('input', (e) => {
-        autoSelectSubject(e.target.value.trim());
+      const dropdown = document.getElementById('teacherDropdown');
+
+      // 點擊姓名欄時展開完整名單
+      nameInput.addEventListener('focus', () => {
+        renderTeacherDropdown('');
       });
+
+      // 打字時即時篩選名單，若完全符合則自動帶入科目並載入紀錄
+      nameInput.addEventListener('input', (e) => {
+        const val = e.target.value.trim();
+        renderTeacherDropdown(val);
+        if (val in teacherSubjectMap) {
+          autoSelectSubject(val);
+          loadRecords();
+        }
+      });
+
+      // 手動輸入完離開時查詢紀錄
       nameInput.addEventListener('change', (e) => {
         autoSelectSubject(e.target.value.trim());
         loadRecords();
       });
-      document.getElementById('useDate').addEventListener('change', loadRecords);
 
-      // 點擊姓名欄時暫時清空，讓下拉選單顯示全部名單；若未輸入則自動復原
-      nameInput.addEventListener('focus', function () {
-        this.dataset.prev = this.value;
-        this.placeholder = this.value || '選擇或輸入姓名';
-        this.value = '';
-      });
-      nameInput.addEventListener('blur', function () {
-        if (!this.value.trim() && this.dataset.prev) {
-          this.value = this.dataset.prev;
+      // 點擊選單外部時自動收合
+      document.addEventListener('click', (e) => {
+        if (!document.getElementById('teacherComboBox').contains(e.target)) {
+          dropdown.classList.add('hidden');
         }
-        this.placeholder = '選擇或輸入姓名';
       });
+
+      document.getElementById('useDate').addEventListener('change', loadRecords);
     };
 
     // 從 GAS 動態載入「教師名單」
@@ -203,14 +223,10 @@
         const res = await fetch(`${GAS_API_URL}?action=getTeachers`);
         const data = await res.json();
         if (data.success && Array.isArray(data.teachers)) {
-          const datalist = document.getElementById('teacherList');
-          datalist.innerHTML = '';
+          allTeachers = data.teachers;
           teacherSubjectMap = {};
-          data.teachers.forEach(t => {
+          allTeachers.forEach(t => {
             teacherSubjectMap[t.name] = t.subject;
-            const opt = document.createElement('option');
-            opt.value = t.name;
-            datalist.appendChild(opt);
           });
         }
       } catch (err) {
@@ -218,7 +234,41 @@
       }
     }
 
-    // 依選取的教師姓名，自動切換對應的任教科目（教師仍可手動改選）
+    // 渲染自製下拉選單
+    function renderTeacherDropdown(filterText = '') {
+      const dropdown = document.getElementById('teacherDropdown');
+      const keyword = filterText.trim();
+      const filtered = keyword
+        ? allTeachers.filter(t => t.name.includes(keyword))
+        : allTeachers;
+
+      if (filtered.length === 0) {
+        dropdown.classList.add('hidden');
+        return;
+      }
+
+      dropdown.innerHTML = filtered.map(t => `
+        <li class="px-3 py-2.5 hover:bg-slate-100 active:bg-slate-200 cursor-pointer flex justify-between items-center"
+            data-name="${t.name}">
+          <span class="text-slate-800">${t.name}</span>
+          <span class="text-xs text-slate-400">${t.subject || ''}</span>
+        </li>
+      `).join('');
+
+      dropdown.querySelectorAll('li').forEach(li => {
+        li.onclick = () => {
+          const name = li.dataset.name;
+          const input = document.getElementById('teacherName');
+          input.value = name;
+          dropdown.classList.add('hidden');
+          autoSelectSubject(name);
+          loadRecords();
+        };
+      });
+
+      dropdown.classList.remove('hidden');
+    }
+
     // 依選取的教師姓名，自動切換對應的任教科目（僅套用選單內既有的科目）
     function autoSelectSubject(name) {
       const subject = teacherSubjectMap[name];
