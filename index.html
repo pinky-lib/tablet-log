@@ -27,8 +27,11 @@
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1">教師姓名</label>
-          <input type="text" id="teacherName" name="name" autocomplete="name" required placeholder="請輸入姓名"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500">        </div>
+          <input type="text" id="teacherName" autocomplete="off" list="teacherList" required placeholder="選擇或輸入姓名"
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500">
+          <!-- 由試算表「教師名單」動態載入 -->
+          <datalist id="teacherList"></datalist>
+        </div>
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1">任教科目</label>
           <select id="subject" required
@@ -38,8 +41,7 @@
             <option value="數學">數學</option>
             <option value="自然">自然</option>
             <option value="社會">社會</option>
-            <option value="資訊科技">資訊科技</option>
-            <option value="生活科技">生活科技</option>
+            <option value="科技">科技</option>
             <option value="藝術">藝術</option>
             <option value="健體">健體</option>
             <option value="綜合">綜合</option>
@@ -116,7 +118,7 @@
 
   <script>
     // ★★★ 請將此處替換為你的 GAS 網頁應用程式網址 ★★★
-    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyVo-RomjY-IeJJScDnssnKDHgAthIUPmw4zDGpNwkuCkqqxCNptj7lbOh9W9pYH-Lt_A/exec';
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbxqO-r-YnvPV8TWOCY7n5nCv6Cx16p1G0gdvMLgy15W04NebTCMA15S3w9_6KE_ydBLEA/exec';
 
     const GRADE_CLASSES = {
       '七年級': ['701', '702', '703', '704', '705', '706', '其它'],
@@ -141,6 +143,7 @@
     let selectedPeriod = '';
     let allRecords = [];
     let showAllRecords = false;
+    let teacherSubjectMap = {}; // 儲存 教師姓名 -> 任教科目 對照表
 
     window.onload = () => {
       // 1. 填入今天日期
@@ -155,7 +158,10 @@
       renderClasses(selectedGrade);
       renderPeriods();
 
-      // 3. 讀取瀏覽器記憶的姓名與科目
+      // 3. 從試算表動態載入教師名單
+      loadTeacherList();
+
+      // 4. 讀取瀏覽器記憶的姓名與科目
       const savedName = localStorage.getItem('tablet_teacherName');
       const savedSubject = localStorage.getItem('tablet_subject');
       if (savedName) {
@@ -166,10 +172,63 @@
         document.getElementById('subject').value = savedSubject;
       }
 
-      // 姓名或日期變更時，重新載入對應學期的紀錄
-      document.getElementById('teacherName').addEventListener('change', loadRecords);
+      // 姓名變更時：自動帶入任教科目並查詢紀錄
+      const nameInput = document.getElementById('teacherName');
+      nameInput.addEventListener('input', (e) => {
+        autoSelectSubject(e.target.value.trim());
+      });
+      nameInput.addEventListener('change', (e) => {
+        autoSelectSubject(e.target.value.trim());
+        loadRecords();
+      });
       document.getElementById('useDate').addEventListener('change', loadRecords);
+
+      // 點擊姓名欄時暫時清空，讓下拉選單顯示全部名單；若未輸入則自動復原
+      nameInput.addEventListener('focus', function () {
+        this.dataset.prev = this.value;
+        this.placeholder = this.value || '選擇或輸入姓名';
+        this.value = '';
+      });
+      nameInput.addEventListener('blur', function () {
+        if (!this.value.trim() && this.dataset.prev) {
+          this.value = this.dataset.prev;
+        }
+        this.placeholder = '選擇或輸入姓名';
+      });
     };
+
+    // 從 GAS 動態載入「教師名單」
+    async function loadTeacherList() {
+      try {
+        const res = await fetch(`${GAS_API_URL}?action=getTeachers`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.teachers)) {
+          const datalist = document.getElementById('teacherList');
+          datalist.innerHTML = '';
+          teacherSubjectMap = {};
+          data.teachers.forEach(t => {
+            teacherSubjectMap[t.name] = t.subject;
+            const opt = document.createElement('option');
+            opt.value = t.name;
+            datalist.appendChild(opt);
+          });
+        }
+      } catch (err) {
+        console.error('載入教師名單失敗', err);
+      }
+    }
+
+    // 依選取的教師姓名，自動切換對應的任教科目（教師仍可手動改選）
+    // 依選取的教師姓名，自動切換對應的任教科目（僅套用選單內既有的科目）
+    function autoSelectSubject(name) {
+      const subject = teacherSubjectMap[name];
+      if (!subject) return;
+      const subjectSelect = document.getElementById('subject');
+      const exists = Array.from(subjectSelect.options).some(opt => opt.value === subject);
+      if (exists) {
+        subjectSelect.value = subject;
+      }
+    }
 
     function renderGrades() {
       const container = document.getElementById('gradeContainer');
