@@ -109,20 +109,23 @@
   </div>
 
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-    import {
-      getFirestore, collection, doc, getDoc, setDoc, getDocs, query, where
-    } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
 
-    // ★★★ 請將此處替換為你的 Firebase 專案設定 ★★★
-    const firebaseConfig = {
-		apiKey: "AIzaSyANe-EUeB01ohzzRWOVZWIGCgSNt0P17ek",
-		authDomain: "ltjh-tablet-log.firebaseapp.com",
-		projectId: "ltjh-tablet-log",
-		storageBucket: "ltjh-tablet-log.firebasestorage.app",
-		messagingSenderId: "255065867219",
-		appId: "1:255065867219:web:0c610e60238afa43b12526"
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyANe-EUeB01ohzzRWOVZWIGCgSNt0P17ek",
+  authDomain: "ltjh-tablet-log.firebaseapp.com",
+  projectId: "ltjh-tablet-log",
+  storageBucket: "ltjh-tablet-log.firebasestorage.app",
+  messagingSenderId: "255065867219",
+  appId: "1:255065867219:web:0c610e60238afa43b12526"
 };
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
