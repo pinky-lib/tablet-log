@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>LTJH班級平板使用紀錄 (極速版)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen py-5 px-3">
+
+  <div class="max-w-md mx-auto bg-white rounded-2xl shadow-md p-5">
+    <h1 class="text-xl font-bold text-slate-800 flex items-center justify-center gap-2 mb-5">
+      <svg class="w-6 h-6 text-slate-800 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="4" y="2" width="16" height="20" rx="2.5" ry="2.5"></rect>
+        <line x1="10" y1="19" x2="14" y2="19"></line>
+        <circle cx="12" cy="5" r="0.6" fill="currentColor"></circle>
+      </svg>
+      <span>LTJH班級平板使用紀錄</span>
+    </h1>
+
+    <form id="logForm" class="space-y-4">
+      <!-- 教師姓名 & 科目 -->
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">教師姓名</label>
+          <select id="teacherName" required
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-500">
+            <option value="">載入名單中...</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">任教科目</label>
+          <select id="subject" required
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-500">
+            <option value="">請選擇科目</option>
+            <option value="國文">國文</option>
+            <option value="英語">英語</option>
+            <option value="數學">數學</option>
+            <option value="自然">自然</option>
+            <option value="社會">社會</option>
+            <option value="科技">科技</option>
+            <option value="藝術">藝術</option>
+            <option value="健體">健體</option>
+            <option value="綜合">綜合</option>
+            <option value="特教">特教</option>
+            <option value="其他">其他</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 使用日期 -->
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">使用日期（可選過去日期補登）</label>
+        <input type="date" id="useDate" required
+          class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500">
+      </div>
+
+      <!-- 1. 先選年級 -->
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1.5">選擇年級</label>
+        <div id="gradeContainer" class="grid grid-cols-3 gap-2"></div>
+      </div>
+
+      <!-- 2. 再選班級 -->
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1.5">選擇班級</label>
+        <div id="classContainer" class="grid grid-cols-4 gap-2"></div>
+      </div>
+
+      <!-- 3. 選擇節次（單選） -->
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1.5">使用節次</label>
+        <div id="periodContainer" class="grid grid-cols-5 gap-1.5"></div>
+      </div>
+
+      <!-- 送出按鈕 -->
+      <button type="submit" id="submitBtn"
+        class="w-full bg-slate-800 hover:bg-slate-900 active:bg-slate-950 text-white font-semibold py-2.5 rounded-xl transition disabled:opacity-50">
+        送出登記
+      </button>
+
+      <div id="statusMsg" class="text-center text-sm font-medium hidden"></div>
+    </form>
+
+    <!-- 個人近期紀錄 -->
+    <div class="mt-6 pt-5 border-t border-slate-200">
+      <div class="flex justify-between items-center mb-3">
+        <h2 class="text-sm font-bold text-slate-700">我的近期登記</h2>
+        <span id="totalBadge" class="text-xs bg-slate-200 text-slate-700 font-semibold px-2.5 py-0.5 rounded-full">
+          本學期累計：0 節
+        </span>
+      </div>
+      <div class="grid grid-cols-4 gap-2 px-3 pb-1.5 text-[11px] font-semibold text-slate-400 text-left">
+        <span>登記日期</span>
+        <span>班級</span>
+        <span>節次</span>
+        <span>科目</span>
+      </div>
+      <div id="recentList" class="space-y-1.5 text-xs text-slate-600">
+        <p class="text-slate-400 text-center py-2">選擇姓名後將顯示該學期紀錄</p>
+      </div>
+      <button type="button" id="toggleRecordsBtn"
+        class="hidden w-full mt-2.5 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition">
+      </button>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+    import {
+      getFirestore, collection, doc, getDoc, setDoc, getDocs, query, where
+    } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+    // ★★★ 請將此處替換為你的 Firebase 專案設定 ★★★
+    const firebaseConfig = {
+      apiKey: "你的_API_KEY",
+      authDomain: "你的專案.firebaseapp.com",
+      projectId: "你的專案ID",
+      storageBucket: "你的專案.firebasestorage.app",
+      messagingSenderId: "你的_SENDER_ID",
+      appId: "你的_APP_ID"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const COLLECTION_NAME = 'tablet_logs';
+
+    const GRADE_CLASSES = {
+      '七年級': ['701', '702', '703', '704', '705', '706', '其它'],
+      '八年級': ['801', '802', '803', '804', '805', '806', '其它'],
+      '九年級': ['901', '902', '903', '904', '905', '906', '907', '其它']
+    };
+
+    const GRADE_THEMES = {
+      '七年級': 'bg-emerald-600 text-white border-emerald-600',
+      '八年級': 'bg-orange-500 text-white border-orange-500',
+      '九年級': 'bg-violet-600 text-white border-violet-600'
+    };
+
+    const PERIODS = [
+      '早自修', '第1節', '第2節', '第3節', '第4節',
+      '午休',   '第5節', '第6節', '第7節', '第8節'
+    ];
+
+    let selectedGrade = '七年級';
+    let selectedClass = '';
+    let selectedPeriod = '';
+    let allRecords = [];
+    let showAllRecords = false;
+    let teacherSubjectMap = {};
+
+    // 計算台灣學年度（與 GAS 邏輯完全一致）
+    function getSemesterName(dateStr) {
+      let year, month;
+      if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        const parts = dateStr.split('-');
+        year = parseInt(parts[0], 10);
+        month = parseInt(parts[1], 10);
+      } else {
+        const now = new Date();
+        year = now.getFullYear();
+        month = now.getMonth() + 1;
+      }
+      if (month >= 8) return `${year - 1911}上`;
+      if (month === 1) return `${year - 1912}上`;
+      return `${year - 1912}下`;
+    }
+
+    function formatNowTaiwan() {
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      const hh = String(now.getHours()).padStart(2, '0');
+      const min = String(now.getMinutes()).padStart(2, '0');
+      const ss = String(now.getSeconds()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
+    }
+
+    function init() {
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      document.getElementById('useDate').value = `${yyyy}-${mm}-${dd}`;
+
+      renderGrades();
+      renderClasses(selectedGrade);
+      renderPeriods();
+      loadTeacherList();
+
+      document.getElementById('teacherName').addEventListener('change', (e) => {
+        autoSelectSubject(e.target.value);
+        loadRecords();
+      });
+      document.getElementById('useDate').addEventListener('change', loadRecords);
+    }
+
+    async function loadTeacherList() {
+      const nameSelect = document.getElementById('teacherName');
+      try {
+        const res = await fetch(`./teachers.json?v=${Date.now()}`);
+        const teachers = await res.json();
+        if (Array.isArray(teachers)) {
+          nameSelect.innerHTML = '<option value="">請選擇姓名</option>';
+          teacherSubjectMap = {};
+          teachers.forEach(t => {
+            teacherSubjectMap[t.name] = t.subject;
+            const opt = document.createElement('option');
+            opt.value = t.name;
+            opt.textContent = t.name;
+            nameSelect.appendChild(opt);
+          });
+
+          const savedName = localStorage.getItem('tablet_teacherName');
+          const savedSubject = localStorage.getItem('tablet_subject');
+          if (savedName && savedName in teacherSubjectMap) {
+            nameSelect.value = savedName;
+            if (savedSubject) {
+              document.getElementById('subject').value = savedSubject;
+            } else {
+              autoSelectSubject(savedName);
+            }
+            loadRecords();
+          }
+        }
+      } catch (err) {
+        nameSelect.innerHTML = '<option value="">名單載入失敗</option>';
+        console.error('載入教師名單失敗', err);
+      }
+    }
+
+    function autoSelectSubject(name) {
+      const subject = teacherSubjectMap[name];
+      if (!subject) return;
+      const subjectSelect = document.getElementById('subject');
+      const exists = Array.from(subjectSelect.options).some(opt => opt.value === subject);
+      if (exists) subjectSelect.value = subject;
+    }
+
+    function renderGrades() {
+      const container = document.getElementById('gradeContainer');
+      container.innerHTML = '';
+      Object.keys(GRADE_CLASSES).forEach(grade => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = grade;
+        const isActive = grade === selectedGrade;
+        btn.className = isActive
+          ? `py-2 text-sm font-semibold rounded-lg border transition ${GRADE_THEMES[grade]}`
+          : 'py-2 text-sm font-medium rounded-lg bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 transition';
+        btn.onclick = () => {
+          selectedGrade = grade;
+          selectedClass = '';
+          renderGrades();
+          renderClasses(grade);
+          renderPeriods();
+        };
+        container.appendChild(btn);
+      });
+    }
+
+    function renderClasses(grade) {
+      const container = document.getElementById('classContainer');
+      container.innerHTML = '';
+      const activeTheme = GRADE_THEMES[grade];
+      GRADE_CLASSES[grade].forEach(cls => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = cls;
+        const isActive = cls === selectedClass;
+        btn.className = 'py-2 text-xs font-medium rounded-lg border transition ' + (
+          isActive
+            ? `${activeTheme} font-semibold`
+            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+        );
+        btn.onclick = () => {
+          selectedClass = cls;
+          renderClasses(grade);
+        };
+        container.appendChild(btn);
+      });
+    }
+
+    function renderPeriods() {
+      const container = document.getElementById('periodContainer');
+      container.innerHTML = '';
+      const activeTheme = GRADE_THEMES[selectedGrade];
+      PERIODS.forEach(p => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = p;
+        const isActive = p === selectedPeriod;
+        btn.className = 'py-2 text-xs font-medium rounded-lg border transition ' + (
+          isActive
+            ? `${activeTheme} font-semibold`
+            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+        );
+        btn.onclick = () => {
+          selectedPeriod = p;
+          renderPeriods();
+        };
+        container.appendChild(btn);
+      });
+    }
+
+    // 從 Firestore 毫秒級查詢個人本學期紀錄
+    async function loadRecords() {
+      const name = document.getElementById('teacherName').value.trim();
+      const date = document.getElementById('useDate').value;
+      const semester = getSemesterName(date);
+
+      if (!name) {
+        document.getElementById('totalBadge').textContent = '本學期累計：0 節';
+        document.getElementById('recentList').innerHTML = '<p class="text-slate-400 text-center py-2">選擇姓名後將顯示該學期紀錄</p>';
+        document.getElementById('toggleRecordsBtn').classList.add('hidden');
+        return;
+      }
+
+      document.getElementById('recentList').innerHTML = '<p class="text-slate-400 text-center py-2">載入中...</p>';
+      document.getElementById('toggleRecordsBtn').classList.add('hidden');
+
+      try {
+        const q = query(
+          collection(db, COLLECTION_NAME),
+          where('teacherName', '==', name),
+          where('semester', '==', semester)
+        );
+        const snapshot = await getDocs(q);
+        const records = [];
+        snapshot.forEach(docSnap => {
+          records.push(docSnap.data());
+        });
+
+        sortRecords(records);
+        allRecords = records;
+        showAllRecords = false;
+        document.getElementById('totalBadge').textContent = `${semester} 累計：${allRecords.length} 節`;
+        renderRecordList();
+      } catch (err) {
+        console.error(err);
+        document.getElementById('recentList').innerHTML = '<p class="text-red-400 text-center py-2">讀取紀錄失敗，請檢查網路</p>';
+      }
+    }
+
+    function sortRecords(list) {
+      list.sort((a, b) => {
+        if (b.date !== a.date) return b.date.localeCompare(a.date);
+        return PERIODS.indexOf(b.period) - PERIODS.indexOf(a.period);
+      });
+    }
+
+    function renderRecordList() {
+      const list = document.getElementById('recentList');
+      const toggleBtn = document.getElementById('toggleRecordsBtn');
+
+      if (allRecords.length === 0) {
+        list.innerHTML = '<p class="text-slate-400 text-center py-2">尚無登記紀錄</p>';
+        toggleBtn.classList.add('hidden');
+        return;
+      }
+
+      const displayList = showAllRecords ? allRecords : allRecords.slice(0, 5);
+      list.innerHTML = displayList.map(r => `
+        <div class="grid grid-cols-4 items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 text-left">
+          <span class="font-medium text-slate-700">${r.date}</span>
+          <span>${r.className}</span>
+          <span>${r.period}</span>
+          <span class="text-slate-400">${r.subject}</span>
+        </div>
+      `).join('');
+
+      if (allRecords.length > 5) {
+        toggleBtn.classList.remove('hidden');
+        toggleBtn.textContent = showAllRecords
+          ? '收合紀錄（僅顯示最近 5 筆）'
+          : `顯示全部（共 ${allRecords.length} 筆）`;
+      } else {
+        toggleBtn.classList.add('hidden');
+      }
+    }
+
+    document.getElementById('toggleRecordsBtn').onclick = () => {
+      showAllRecords = !showAllRecords;
+      renderRecordList();
+    };
+
+    // 送出登記：直接寫入 Firestore（以唯一 ID 防呆）
+    document.getElementById('logForm').onsubmit = async (e) => {
+      e.preventDefault();
+      if (!selectedClass) {
+        showStatus('請選擇班級！', 'text-red-600');
+        return;
+      }
+      if (!selectedPeriod) {
+        showStatus('請選擇使用節次！', 'text-red-600');
+        return;
+      }
+
+      const teacherName = document.getElementById('teacherName').value.trim();
+      const subject = document.getElementById('subject').value;
+      const date = document.getElementById('useDate').value;
+      const semester = getSemesterName(date);
+
+      localStorage.setItem('tablet_teacherName', teacherName);
+      localStorage.setItem('tablet_subject', subject);
+
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      btn.textContent = '傳送中...';
+      showStatus('', '');
+
+      try {
+        // 用「日期_節次_教師姓名」當作唯一文件 ID，達成極速重複防呆
+        const safeTeacher = teacherName.replace(/\//g, '_');
+        const docId = `${date}_${selectedPeriod}_${safeTeacher}`;
+        const docRef = doc(db, COLLECTION_NAME, docId);
+
+        const existing = await getDoc(docRef);
+        if (existing.exists()) {
+          showStatus(`❌ 重複登記：${selectedPeriod} 已有登記紀錄！`, 'text-red-600');
+          return;
+        }
+
+        const newRecord = {
+          timestamp: formatNowTaiwan(),
+          date,
+          grade: selectedGrade,
+          className: selectedClass,
+          period: selectedPeriod,
+          subject,
+          teacherName,
+          semester,
+          synced: false // 標記為尚未同步回 Google 試算表
+        };
+
+        await setDoc(docRef, newRecord);
+
+        // 寫入成功後直接更新畫面清單
+        allRecords.push(newRecord);
+        sortRecords(allRecords);
+        document.getElementById('totalBadge').textContent = `${semester} 累計：${allRecords.length} 節`;
+        renderRecordList();
+
+        showStatus(`✅ 已登記至「${semester}」共 1 節！`, 'text-emerald-600');
+        selectedPeriod = '';
+        renderPeriods();
+      } catch (err) {
+        console.error(err);
+        showStatus('❌ 寫入失敗，請檢查網路或 Firebase 設定', 'text-red-600');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '送出登記';
+      }
+    };
+
+    function showStatus(msg, colorClass) {
+      const el = document.getElementById('statusMsg');
+      if (!msg) {
+        el.classList.add('hidden');
+        return;
+      }
+      el.textContent = msg;
+      el.className = `text-center text-sm font-medium ${colorClass}`;
+      el.classList.remove('hidden');
+    }
+
+    init();
+  </script>
+</body>
+</html>
