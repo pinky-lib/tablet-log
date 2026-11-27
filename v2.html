@@ -93,11 +93,12 @@
           本學期累計：0 節
         </span>
       </div>
-      <div class="grid grid-cols-4 gap-2 px-3 pb-1.5 text-[11px] font-semibold text-slate-400 text-left">
+      <div class="grid grid-cols-[1.3fr_0.8fr_0.9fr_0.8fr_2.2rem] gap-1.5 px-3 pb-1.5 text-[11px] font-semibold text-slate-400 text-left">
         <span>登記日期</span>
         <span>班級</span>
         <span>節次</span>
         <span>科目</span>
+        <span class="text-center">操作</span>
       </div>
       <div id="recentList" class="space-y-1.5 text-xs text-slate-600">
         <p class="text-slate-400 text-center py-2">選擇姓名後將顯示該學期紀錄</p>
@@ -108,10 +109,10 @@
     </div>
   </div>
 
-<script type="module">
+  <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
     import {
-      initializeFirestore, collection, doc, getDoc, setDoc, getDocs, query, where
+      initializeFirestore, collection, doc, getDoc, setDoc, deleteDoc, getDocs, query, where
     } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -128,6 +129,17 @@
       experimentalForceLongPolling: true
     });
     const COLLECTION_NAME = 'tablet_logs';
+
+    // 取得或產生本機專屬識別碼（用於同裝置誤登自刪鎖定）
+    function getDeviceToken() {
+      let token = localStorage.getItem('tablet_deviceToken');
+      if (!token) {
+        token = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+        localStorage.setItem('tablet_deviceToken', token);
+      }
+      return token;
+    }
+    const myDeviceToken = getDeviceToken();
 
     const GRADE_CLASSES = {
       '七年級': ['701', '702', '703', '704', '705', '706', '其它'],
@@ -153,7 +165,6 @@
     let showAllRecords = false;
     let teacherSubjectMap = {};
 
-    // 計算台灣學年度（與 GAS 邏輯完全一致）
     function getSemesterName(dateStr) {
       let year, month;
       if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
@@ -198,6 +209,15 @@
         loadRecords();
       });
       document.getElementById('useDate').addEventListener('change', loadRecords);
+
+      // 監聽刪除按鈕點擊（事件委派）
+      document.getElementById('recentList').addEventListener('click', async (e) => {
+        const btn = e.target.closest('.delete-record-btn');
+        if (!btn) return;
+        const docId = btn.dataset.docId;
+        const label = btn.dataset.label;
+        await handleDeleteRecord(docId, label, btn);
+      });
     }
 
     async function loadTeacherList() {
@@ -308,7 +328,6 @@
       });
     }
 
-    // 從 Firestore 毫秒級查詢個人本學期紀錄
     async function loadRecords() {
       const name = document.getElementById('teacherName').value.trim();
       const date = document.getElementById('useDate').value;
@@ -333,7 +352,7 @@
         const snapshot = await getDocs(q);
         const records = [];
         snapshot.forEach(docSnap => {
-          records.push(docSnap.data());
+          records.push({ ...docSnap.data(), docId: docSnap.id });
         });
 
         sortRecords(records);
@@ -365,14 +384,24 @@
       }
 
       const displayList = showAllRecords ? allRecords : allRecords.slice(0, 5);
-      list.innerHTML = displayList.map(r => `
-        <div class="grid grid-cols-4 items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 text-left">
-          <span class="font-medium text-slate-700">${r.date}</span>
-          <span>${r.className}</span>
-          <span>${r.period}</span>
-          <span class="text-slate-400">${r.subject}</span>
-        </div>
-      `).join('');
+      list.innerHTML = displayList.map(r => {
+        // 僅在「尚未同步」且「同一台裝置」時顯示刪除鈕
+        const canDelete = r.synced === false && r.deviceToken === myDeviceToken;
+        const label = `${r.date} ${r.className} ${r.period}`;
+        const actionHtml = canDelete
+          ? `<button type="button" class="delete-record-btn text-red-500 hover:text-red-700 hover:bg-red-50 font-medium px-1.5 py-0.5 rounded transition text-[11px]" data-doc-id="${r.docId}" data-label="${label}">刪除</button>`
+          : `<span class="text-slate-300 text-[10px]">—</span>`;
+
+        return `
+          <div class="grid grid-cols-[1.3fr_0.8fr_0.9fr_0.8fr_2.2rem] items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 text-left">
+            <span class="font-medium text-slate-700">${r.date}</span>
+            <span>${r.className}</span>
+            <span>${r.period}</span>
+            <span class="text-slate-400">${r.subject}</span>
+            <span class="text-center">${actionHtml}</span>
+          </div>
+        `;
+      }).join('');
 
       if (allRecords.length > 5) {
         toggleBtn.classList.remove('hidden');
@@ -384,12 +413,31 @@
       }
     }
 
+    async function handleDeleteRecord(docId, label, btn) {
+      if (!confirm(`確定要刪除「${label}」這筆登記紀錄嗎？`)) return;
+
+      btn.disabled = true;
+      btn.textContent = '...';
+      try {
+        await deleteDoc(doc(db, COLLECTION_NAME, docId));
+        allRecords = allRecords.filter(r => r.docId !== docId);
+        const semester = getSemesterName(document.getElementById('useDate').value);
+        document.getElementById('totalBadge').textContent = `${semester} 累計：${allRecords.length} 節`;
+        renderRecordList();
+        showStatus(`🗑️ 已刪除「${label}」`, 'text-slate-600');
+      } catch (err) {
+        console.error(err);
+        alert('刪除失敗（可能該筆資料已同步入庫，或網路異常）');
+        btn.disabled = false;
+        btn.textContent = '刪除';
+      }
+    }
+
     document.getElementById('toggleRecordsBtn').onclick = () => {
       showAllRecords = !showAllRecords;
       renderRecordList();
     };
 
-    // 送出登記：直接寫入 Firestore（以唯一 ID 防呆）
     document.getElementById('logForm').onsubmit = async (e) => {
       e.preventDefault();
       if (!selectedClass) {
@@ -415,7 +463,6 @@
       showStatus('', '');
 
       try {
-        // 用「日期_節次_教師姓名」當作唯一文件 ID，達成極速重複防呆
         const safeTeacher = teacherName.replace(/\//g, '_');
         const docId = `${date}_${selectedPeriod}_${safeTeacher}`;
         const docRef = doc(db, COLLECTION_NAME, docId);
@@ -435,13 +482,13 @@
           subject,
           teacherName,
           semester,
-          synced: false // 標記為尚未同步回 Google 試算表
+          synced: false,
+          deviceToken: myDeviceToken
         };
 
         await setDoc(docRef, newRecord);
 
-        // 寫入成功後直接更新畫面清單
-        allRecords.push(newRecord);
+        allRecords.push({ ...newRecord, docId });
         sortRecords(allRecords);
         document.getElementById('totalBadge').textContent = `${semester} 累計：${allRecords.length} 節`;
         renderRecordList();
