@@ -108,27 +108,25 @@
     </div>
   </div>
 
-  <script type="module">
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+    import {
+      initializeFirestore, collection, doc, getDoc, setDoc, getDocs, query, where
+    } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyANe-EUeB01ohzzRWOVZWIGCgSNt0P17ek",
-  authDomain: "ltjh-tablet-log.firebaseapp.com",
-  projectId: "ltjh-tablet-log",
-  storageBucket: "ltjh-tablet-log.firebasestorage.app",
-  messagingSenderId: "255065867219",
-  appId: "1:255065867219:web:0c610e60238afa43b12526"
-};
-
-// Initialize Firebase
-
+    const firebaseConfig = {
+      apiKey: "AIzaSyANe-EUeB01ohzzRWOVZWIGCgSNt0P17ek",
+      authDomain: "ltjh-tablet-log.firebaseapp.com",
+      projectId: "ltjh-tablet-log",
+      storageBucket: "ltjh-tablet-log.firebasestorage.app",
+      messagingSenderId: "255065867219",
+      appId: "1:255065867219:web:0c610e60238afa43b12526"
+    };
 
     const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    const db = initializeFirestore(app, {
+      experimentalForceLongPolling: true
+    });
     const COLLECTION_NAME = 'tablet_logs';
 
     const GRADE_CLASSES = {
